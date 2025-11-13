@@ -25,6 +25,10 @@ import {
     Tooltip,
     useTheme,
     alpha,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
 } from '@mui/material';
 import Masonry from '@mui/lab/Masonry';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
@@ -210,6 +214,45 @@ const executiveSummaryMarkdownOverrides = {
     hr: { component: Divider, props: { sx: { my: 2, borderColor: COLOR_EXEC_BORDER } } }
 } as any;
 
+// Chartifact style markdown overrides (bold and prominent styling)
+const chartifactMarkdownOverrides = {
+    ...getOverrides(),
+    h1: { component: Typography, props: { variant: 'h4', gutterBottom: true, 
+        sx: { fontFamily: FONT_FAMILY_SYSTEM, fontWeight: 700, fontSize: '2rem', lineHeight: 1.3, color: COLOR_HEADING, mb: 3, mt: 4 } } },
+    h2: { component: Typography, props: { variant: 'h5', gutterBottom: true,
+        sx: { fontFamily: FONT_FAMILY_SYSTEM, fontWeight: 600, fontSize: '1.5rem', lineHeight: 1.4, color: COLOR_HEADING, mb: 2.5, mt: 3 } } },
+    h3: { component: Typography, props: { variant: 'h6', gutterBottom: true,
+        sx: { fontFamily: FONT_FAMILY_SYSTEM, fontWeight: 600, fontSize: '1.25rem', lineHeight: 1.4, color: COLOR_HEADING, mb: 2, mt: 2.5 } } },
+    p: { component: Typography, props: { variant: 'body1', paragraph: true,
+        sx: { fontFamily: FONT_FAMILY_SYSTEM, fontSize: '1rem', lineHeight: 1.7, fontWeight: 400, color: COLOR_BODY, mb: 2 } } },
+    a: { component: Link, props: { underline: 'hover' as const, color: 'primary' as const, 
+        sx: { fontSize: 'inherit', fontWeight: 600 } } },
+    ul: { component: 'ul', props: { style: { paddingLeft: '2em', marginTop: '1em', marginBottom: '2em', fontFamily: FONT_FAMILY_SYSTEM } } },
+    ol: { component: 'ol', props: { style: { paddingLeft: '2em', marginTop: '1em', marginBottom: '2em', fontFamily: FONT_FAMILY_SYSTEM } } },
+    li: { component: Typography, props: { component: 'li', variant: 'body1',
+        sx: { fontFamily: FONT_FAMILY_SYSTEM, fontSize: '1rem', lineHeight: 1.7, fontWeight: 400, color: COLOR_BODY, mb: 0.75 } } },
+    blockquote: { component: Box, props: { sx: { 
+        borderLeft: '4px solid', borderColor: 'primary.main', pl: 3, py: 1.5, my: 3,
+        backgroundColor: COLOR_BG_LIGHT, fontFamily: FONT_FAMILY_SYSTEM, fontStyle: 'italic', color: COLOR_BODY, fontSize: '1rem', lineHeight: 1.7 
+    } } },
+    pre: { component: Paper, props: { elevation: 0, sx: { 
+        backgroundColor: COLOR_BG_LIGHT, p: 2.5, borderRadius: '6px', overflow: 'auto', my: 2.5,
+        border: '1px solid', borderColor: 'divider',
+        '& code': { backgroundColor: 'transparent !important', padding: '0 !important', fontSize: '0.875rem', fontFamily: FONT_FAMILY_MONO, lineHeight: 1.7, color: COLOR_BODY }
+    } } },
+    table: { component: TableContainer, props: { component: Paper, elevation: 1, sx: { my: 3, borderRadius: '6px' } } },
+    thead: { component: TableHead, props: { sx: { backgroundColor: 'primary.main' } } },
+    tbody: { component: TableBody },
+    tr: { component: TableRow },
+    th: { component: TableCell, props: { sx: { 
+        fontFamily: FONT_FAMILY_SYSTEM, fontSize: '0.9375rem', py: 1.5, px: 2, fontWeight: 700, borderBottom: '2px solid', borderColor: 'divider', color: 'white'
+    } } },
+    td: { component: TableCell, props: { sx: { 
+        fontFamily: FONT_FAMILY_SYSTEM, fontSize: '0.9375rem', py: 1.5, px: 2, borderBottom: '1px solid', borderColor: 'divider', lineHeight: 1.7, color: COLOR_BODY
+    } } },
+    hr: { component: Divider, props: { sx: { my: 3 } } }
+} as any;
+
 export const ReportView: FC = () => {
     // Get all generated reports from Redux state
     const dispatch = useDispatch<AppDispatch>();
@@ -231,6 +274,7 @@ export const ReportView: FC = () => {
     const [error, setError] = useState<string>('');
     const [style, setStyle] = useState<string>('short note');
     const [mode, setMode] = useState<'compose' | 'post'>(allGeneratedReports.length > 0 ? 'post' : 'compose');
+    const [chartifactDialogOpen, setChartifactDialogOpen] = useState(false);
 
     // Local state for current report
     const [currentReportId, setCurrentReportId] = useState<string | undefined>(undefined);
@@ -807,7 +851,14 @@ export const ReportView: FC = () => {
                             <ToggleButtonGroup
                                 value={style}
                                 exclusive
-                                onChange={(e, newStyle) => newStyle && setStyle(newStyle)}
+                                onChange={(e, newStyle) => {
+                                    if (newStyle) {
+                                        setStyle(newStyle);
+                                        if (newStyle === 'Chartifact') {
+                                            setChartifactDialogOpen(true);
+                                        }
+                                    }
+                                }}
                                 size="small"
                                 sx={{ 
                                     '& .MuiToggleButtonGroup-grouped': {
@@ -833,6 +884,7 @@ export const ReportView: FC = () => {
                                     { value: 'blog post', label: 'blog post' },
                                     { value: 'social post', label: 'social post' },
                                     { value: 'executive summary', label: 'executive summary' },
+                                    { value: 'Chartifact', label: 'Chartifact' },
                                 ].map((option) => (
                                     <ToggleButton 
                                         key={option.value}
@@ -1172,6 +1224,13 @@ export const ReportView: FC = () => {
                                             '& code': { backgroundColor: COLOR_EXEC_BG, color: COLOR_EXEC_ACCENT, padding: '0.1em 0.25em', borderRadius: '2px', fontSize: '0.75rem', fontFamily: FONT_FAMILY_MONO },
                                             '& strong': { fontWeight: 600, color: COLOR_EXEC_HEADING },
                                             '& img': { maxWidth: '70%', maxHeight: config.defaultChartHeight * 1.5, objectFit: 'contain', width: 'auto', height: 'auto', borderRadius: '3px', marginTop: '1em', marginBottom: '1em' }
+                                        } : generatedStyle === 'Chartifact' ? {
+                                            maxWidth: '900px', p: 3, backgroundColor: 'white',
+                                            fontFamily: FONT_FAMILY_SYSTEM, fontSize: '1rem', lineHeight: 1.6, color: COLOR_BODY,
+                                            border: '2px solid', borderColor: 'primary.main', borderRadius: '8px',
+                                            '& code': { backgroundColor: COLOR_BG_LIGHT, color: 'primary.main', padding: '0.2em 0.4em', borderRadius: '4px', fontSize: '0.875rem', fontFamily: FONT_FAMILY_MONO },
+                                            '& strong': { fontWeight: 700, color: COLOR_HEADING },
+                                            '& img': { maxWidth: '80%', maxHeight: config.defaultChartHeight * 2, objectFit: 'contain', width: 'auto', height: 'auto', borderRadius: '6px', marginTop: '1.5em', marginBottom: '1.5em' }
                                         } : { 
                                             maxWidth: '800px', px: 6, py: 0, backgroundColor: 'background.paper',
                                             ...BODY_TEXT_BASE,
@@ -1194,6 +1253,8 @@ export const ReportView: FC = () => {
                                             ? socialStyleMarkdownOverrides 
                                             : generatedStyle === 'executive summary'
                                             ? executiveSummaryMarkdownOverrides
+                                            : generatedStyle === 'Chartifact'
+                                            ? chartifactMarkdownOverrides
                                             : notionStyleMarkdownOverrides
                                     }>{displayedReport}</MuiMarkdown>
                                     
@@ -1228,6 +1289,41 @@ export const ReportView: FC = () => {
                     </Box>
                 </Box>
             ) : null}
+
+            {/* Chartifact Dialog */}
+            <Dialog
+                open={chartifactDialogOpen}
+                onClose={() => setChartifactDialogOpen(false)}
+                maxWidth="lg"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        minHeight: '80vh',
+                        maxHeight: '90vh',
+                    }
+                }}
+            >
+                <DialogTitle>
+                    <Typography variant="h5" component="div">
+                        Chartifact Report
+                    </Typography>
+                </DialogTitle>
+                <DialogContent dividers>
+                    <Box sx={{ p: 2 }}>
+                        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                            This is a large dialog box for the Chartifact report type.
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                            The plumbing is now wired up. Content can be added here in the future.
+                        </Typography>
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setChartifactDialogOpen(false)} color="primary">
+                        Close
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };
