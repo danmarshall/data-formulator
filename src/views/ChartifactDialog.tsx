@@ -41,14 +41,14 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
     const convertToChartifact = async (reportMarkdown: string): Promise<string> => {
         try {
             // Extract chart IDs from the report markdown images
-            // Images are in format: ![chart description](chart-id)
-            const imageRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+            // Images are in format: [IMAGE(chart-id)]
+            const imageRegex = /\[IMAGE\(([^)]+)\)\]/g;
             let result = reportMarkdown;
             let match;
             const replacements: Array<{ original: string; replacement: string }> = [];
 
             while ((match = imageRegex.exec(reportMarkdown)) !== null) {
-                const [fullMatch, altText, chartId] = match;
+                const [fullMatch, chartId] = match;
                 
                 // Find the chart in the store using the chart ID
                 const chart = charts.find(c => c.id === chartId);
