@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-import React, { FC, useState, useEffect } from 'react';
+import React, { FC, useState, useEffect, useRef } from 'react';
 import {
     Dialog,
     DialogTitle,
@@ -14,6 +14,16 @@ import {
 } from '@mui/material';
 import { Chart, DictTable, FieldItem, EncodingMap } from '../components/ComponentType';
 import { assembleVegaChart, prepVisTable, exportTableToDsv } from '../app/utils';
+
+// Type declarations for Chartifact
+declare global {
+    interface Window {
+        Chartifact?: {
+            sandbox: any;
+            htmlWrapper: any;
+        };
+    }
+}
 
 interface ChartifactDialogProps {
     open: boolean;
@@ -36,6 +46,92 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
 }) => {
     const [source, setSource] = useState('');
     const [isConverting, setIsConverting] = useState(false);
+    const [chartifactLoaded, setChartifactLoaded] = useState(false);
+    const parentElementRef = useRef<HTMLDivElement>(null);
+    const sandboxRef = useRef<any>(null);
+
+    // Load Chartifact scripts
+    const loadChartifactScripts = async (): Promise<void> => {
+        // Check if Chartifact is already loaded
+        if (window.Chartifact?.sandbox && window.Chartifact?.htmlWrapper) {
+            setChartifactLoaded(true);
+            return;
+        }
+
+        const scripts = [
+            'https://microsoft.github.io/chartifact/dist/v1/chartifact.sandbox.umd.js',
+            'https://microsoft.github.io/chartifact/dist/v1/chartifact.html-wrapper.umd.js'
+        ];
+
+        try {
+            for (const src of scripts) {
+                await new Promise<void>((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = () => resolve();
+                    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+                    document.head.appendChild(script);
+                });
+            }
+
+            // Verify that Chartifact was loaded correctly
+            if (window.Chartifact?.sandbox && window.Chartifact?.htmlWrapper) {
+                console.log('Chartifact scripts loaded successfully');
+                setChartifactLoaded(true);
+            } else {
+                throw new Error('Chartifact namespace not found after loading scripts');
+            }
+        } catch (error) {
+            console.error('Error loading Chartifact scripts:', error);
+            throw error;
+        }
+    };
+
+    // Initialize Chartifact sandbox
+    const initializeSandbox = () => {
+        if (!chartifactLoaded || !parentElementRef.current || !source) {
+            return;
+        }
+
+        // Clean up existing sandbox
+        if (sandboxRef.current) {
+            sandboxRef.current = null;
+        }
+
+        try {
+            sandboxRef.current = new window.Chartifact!.sandbox.Sandbox(parentElementRef.current, source, {
+                onReady: () => {
+                    console.log('Sandbox is ready');
+                },
+                onError: (error: any) => {
+                    console.error('Sandbox error:', error);
+                },
+                onApprove: (message: any) => {
+                    console.log('Sandbox approval message:', message);
+                    //TODO policy to approve unapproved on localhost
+                    const { specs } = message;
+                    return specs;
+                },
+            });
+        } catch (error) {
+            console.error('Error initializing Chartifact sandbox:', error);
+        }
+    };
+
+    // Load scripts when dialog opens
+    useEffect(() => {
+        if (open && !chartifactLoaded) {
+            loadChartifactScripts();
+        }
+    }, [open]);
+
+    // Initialize sandbox when source changes and Chartifact is loaded
+    useEffect(() => {
+        if (chartifactLoaded && source && parentElementRef.current) {
+            initializeSandbox();
+        }
+    }, [chartifactLoaded, source]);
+
 
     // Function to convert report markdown to Chartifact format
     const convertToChartifact = async (reportMarkdown: string): Promise<string> => {
@@ -166,7 +262,10 @@ ${csvContent}
                 </Typography>
             </DialogTitle>
             <DialogContent dividers>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}>
+                <Box 
+                    ref={parentElementRef}
+                    sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}
+                >
                     <Typography variant="body1" color="text.secondary">
                         Report Source
                     </Typography>
