@@ -186,6 +186,14 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
     useEffect(() => {
         if (open && chartifactLoaded && source && parentElement) {
             if (!isSandboxFunctional() || !sandboxReady) {
+                // Destroy existing sandbox before creating new one
+                if (sandboxRef.current) {
+                    if (sandboxRef.current.destroy) {
+                        sandboxRef.current.destroy();
+                    }
+                    sandboxRef.current = null;
+                    setSandboxReady(false);
+                }
                 initializeSandbox();
             } else if (sandboxRef.current) {
                 sandboxRef.current.send(source);
