@@ -29,6 +29,7 @@ import {
 import Masonry from '@mui/lab/Masonry';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CreateChartifact from '@mui/icons-material/Description';
 import EditIcon from '@mui/icons-material/Edit';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import HistoryIcon from '@mui/icons-material/History';
@@ -1126,6 +1127,7 @@ export const ReportView: FC = () => {
                                                     backgroundColor: 'primary.dark',
                                                 },
                                             }}
+                                            startIcon={<CreateChartifact />}
                                         >
                                             Create Chartifact
                                         </Button>
