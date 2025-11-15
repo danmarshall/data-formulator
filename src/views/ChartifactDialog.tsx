@@ -74,6 +74,7 @@ interface ChartifactDialogProps {
     open: boolean;
     onClose: () => void;
     reportContent: string;
+    reportStyle: string;
     charts: Chart[];
     tables: DictTable[];
     conceptShelfItems: FieldItem[];
@@ -84,6 +85,7 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
     open,
     onClose,
     reportContent,
+    reportStyle,
     charts,
     tables,
     conceptShelfItems,
@@ -212,6 +214,128 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
         };
     }, [open, chartifactLoaded, source, parentElement]);
 
+    // Function to generate CSS styling based on report type
+    const generateStyleCSS = (style: string): string => {
+        // Font families
+        const FONT_FAMILY_SYSTEM = '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif';
+        const FONT_FAMILY_SERIF = 'Georgia, Cambria, "Times New Roman", Times, serif';
+        const FONT_FAMILY_MONO = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+
+        if (style === 'social post' || style === 'short note') {
+            // Twitter/X style - compact, modern
+            return `\`\`\`css
+body {
+    max-width: 520px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: white;
+    border: 1px solid rgb(207, 217, 222);
+    border-radius: 12px;
+    font-family: ${FONT_FAMILY_SYSTEM};
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.4;
+    color: rgb(15, 20, 25);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: rgb(15, 20, 25);
+    font-weight: 700;
+}
+
+code {
+    background-color: rgba(29, 155, 240, 0.1);
+    color: rgb(29, 155, 240);
+    padding: 0.1em 0.25em;
+    border-radius: 3px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    font-family: ${FONT_FAMILY_MONO};
+}
+
+strong {
+    font-weight: 600;
+    color: rgb(15, 20, 25);
+}
+\`\`\`
+
+`;
+        } else if (style === 'executive summary') {
+            // Professional/business look
+            return `\`\`\`css
+body {
+    max-width: 700px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: white;
+    font-family: ${FONT_FAMILY_SERIF};
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: rgb(33, 37, 41);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: rgb(20, 24, 28);
+    font-weight: 600;
+}
+
+code {
+    background-color: rgb(248, 249, 250);
+    color: rgb(0, 123, 255);
+    padding: 0.1em 0.25em;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    font-family: ${FONT_FAMILY_MONO};
+}
+
+strong {
+    font-weight: 600;
+    color: rgb(20, 24, 28);
+}
+\`\`\`
+
+`;
+        } else {
+            // Default "blog post" style - Notion-like
+            return `\`\`\`css
+body {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 0 48px;
+    background-color: #ffffff;
+    font-family: ${FONT_FAMILY_SYSTEM};
+    font-size: 0.9375rem;
+    line-height: 1.75;
+    font-weight: 400;
+    letter-spacing: 0.003em;
+    color: rgb(55, 53, 47);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: rgb(37, 37, 37);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+code {
+    background-color: rgba(135, 131, 120, 0.15);
+    color: #eb5757;
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: ${FONT_FAMILY_MONO};
+}
+
+strong {
+    font-weight: 600;
+    color: rgb(37, 37, 37);
+}
+\`\`\`
+
+`;
+        }
+    };
 
     // Function to convert report markdown to Chartifact format
     const convertToChartifact = async (reportMarkdown: string): Promise<string> => {
@@ -296,6 +420,10 @@ ${JSON.stringify(modifiedSpec, null, 2)}
             for (const { original, specReplacement } of chartReplacements) {
                 result = result.replace(original, specReplacement);
             }
+
+            // Prepend CSS styling based on report type
+            const cssStyles = generateStyleCSS(reportStyle);
+            result = cssStyles + result;
 
             result += '\n\n---\ncreated with AI using [Data Formulator](https://github.com/microsoft/data-formulator)\n';
 

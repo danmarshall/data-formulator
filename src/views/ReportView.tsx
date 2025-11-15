@@ -1253,6 +1253,7 @@ export const ReportView: FC = () => {
                 open={chartifactDialogOpen}
                 onClose={() => setChartifactDialogOpen(false)}
                 reportContent={generatedReport}
+                reportStyle={generatedStyle}
                 charts={charts}
                 tables={tables}
                 conceptShelfItems={conceptShelfItems}
