@@ -12,15 +12,60 @@ import {
     TextField,
     Box,
 } from '@mui/material';
-import { Chart, DictTable, FieldItem, EncodingMap } from '../components/ComponentType';
+import { Chart, DictTable, FieldItem } from '../components/ComponentType';
 import { assembleVegaChart, prepVisTable, exportTableToDsv } from '../app/utils';
 
-// Type declarations for Chartifact
+// Chartifact library type declarations
+interface SpecReview<T> {
+    pluginName: string;
+    containerId: string;
+    approvedSpec: T;
+    blockedSpec?: T;
+    reason?: string;
+}
+
+interface SandboxedPreHydrateMessage {
+    type: 'sandboxedPreHydrate';
+    transactionId: number;
+    specs: SpecReview<{}>[];
+}
+
+interface SandboxOptions {
+    onReady?: () => void;
+    onError?: (error: Error) => void;
+    onApprove: (message: SandboxedPreHydrateMessage) => SpecReview<{}>[];
+}
+
+interface ChartifactSandbox {
+    options: SandboxOptions;
+    element: HTMLElement;
+    iframe: HTMLIFrameElement;
+    destroy(): void;
+    send(markdown: string): void;
+}
+
+interface ChartifactHtmlWrapper {
+    htmlMarkdownWrapper: (title: string, markdown: string) => string;
+    htmlJsonWrapper: (title: string, json: string) => string;
+}
+
+const chartifactScripts = [
+    'https://microsoft.github.io/chartifact/dist/v1/chartifact.sandbox.umd.js',
+    'https://microsoft.github.io/chartifact/dist/v1/chartifact.html-wrapper.umd.js'
+];
+
+// Type declarations for Chartifact global
 declare global {
     interface Window {
         Chartifact?: {
-            sandbox: any;
-            htmlWrapper: any;
+            sandbox: {
+                Sandbox: new (
+                    elementOrSelector: string | HTMLElement,
+                    markdown: string,
+                    options: SandboxOptions
+                ) => ChartifactSandbox;
+            };
+            htmlWrapper: ChartifactHtmlWrapper;
         };
     }
 }
@@ -35,8 +80,8 @@ interface ChartifactDialogProps {
     config: { defaultChartWidth: number; defaultChartHeight: number };
 }
 
-export const ChartifactDialog: FC<ChartifactDialogProps> = ({ 
-    open, 
+export const ChartifactDialog: FC<ChartifactDialogProps> = ({
+    open,
     onClose,
     reportContent,
     charts,
@@ -49,16 +94,7 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
     const [chartifactLoaded, setChartifactLoaded] = useState(false);
     const [sandboxReady, setSandboxReady] = useState(false);
     const [parentElement, setParentElement] = useState<HTMLDivElement | null>(null);
-    const sandboxRef = useRef<any>(null);
-
-    console.log('ChartifactDialog render:', { 
-        open, 
-        chartifactLoaded,
-        sandboxReady,
-        hasSource: !!source, 
-        hasParentElement: !!parentElement,
-        hasSandboxRef: !!sandboxRef.current 
-    });
+    const sandboxRef = useRef<ChartifactSandbox | null>(null);
 
     // Load Chartifact scripts
     const loadChartifactScripts = async (): Promise<void> => {
@@ -68,13 +104,8 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
             return;
         }
 
-        const scripts = [
-            'https://microsoft.github.io/chartifact/dist/v1/chartifact.sandbox.umd.js',
-            'https://microsoft.github.io/chartifact/dist/v1/chartifact.html-wrapper.umd.js'
-        ];
-
         try {
-            for (const src of scripts) {
+            for (const src of chartifactScripts) {
                 await new Promise<void>((resolve, reject) => {
                     const script = document.createElement('script');
                     script.src = src;
@@ -86,7 +117,6 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
 
             // Verify that Chartifact was loaded correctly
             if (window.Chartifact?.sandbox && window.Chartifact?.htmlWrapper) {
-                console.log('Chartifact scripts loaded successfully');
                 setChartifactLoaded(true);
             } else {
                 throw new Error('Chartifact namespace not found after loading scripts');
@@ -103,19 +133,15 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
             return;
         }
 
-        console.log('Initializing Chartifact sandbox');
-        
         try {
             sandboxRef.current = new window.Chartifact!.sandbox.Sandbox(parentElement, source, {
                 onReady: () => {
-                    console.log('Sandbox is ready');
                     setSandboxReady(true);
                 },
                 onError: (error: any) => {
                     console.error('Sandbox error:', error);
                 },
                 onApprove: (message: any) => {
-                    console.log('Sandbox approval message:', message);
                     //TODO policy to approve unapproved on localhost
                     const { specs } = message;
                     return specs;
@@ -151,38 +177,24 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
         return true;
     };    // Load scripts when dialog opens
     useEffect(() => {
-        console.log('Load scripts effect triggered:', { open, chartifactLoaded });
         if (open && !chartifactLoaded) {
-            console.log('Calling loadChartifactScripts');
             loadChartifactScripts();
         }
     }, [open, chartifactLoaded]);
 
     // Initialize sandbox when dialog opens with all requirements ready
     useEffect(() => {
-        console.log('Initialize/update sandbox effect triggered:', { 
-            open, 
-            chartifactLoaded, 
-            hasSource: !!source,
-            sourceLength: source.length,
-            hasParentElement: !!parentElement,
-            sandboxReady
-        });
-        
         if (open && chartifactLoaded && source && parentElement) {
             if (!isSandboxFunctional() || !sandboxReady) {
-                console.log('Creating new sandbox');
                 initializeSandbox();
-            } else {
-                console.log('Updating existing sandbox with new source');
+            } else if (sandboxRef.current) {
                 sandboxRef.current.send(source);
             }
         }
-        
+
         // Cleanup function runs when dialog closes or component unmounts
         return () => {
             if (!open && sandboxRef.current) {
-                console.log('Dialog closing - destroying sandbox');
                 if (sandboxRef.current.destroy) {
                     sandboxRef.current.destroy();
                 }
@@ -205,7 +217,7 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
 
             while ((match = imageRegex.exec(reportMarkdown)) !== null) {
                 const [fullMatch, chartId] = match;
-                
+
                 // Find the chart in the store using the chart ID
                 const chart = charts.find(c => c.id === chartId);
                 if (!chart) {
@@ -228,7 +240,7 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
                 try {
                     // Preprocess the data for aggregations
                     const processedRows = prepVisTable(chartTable.rows, conceptShelfItems, chart.encodingMap);
-                    
+
                     // Assemble the Vega-Lite spec
                     const vegaSpec = assembleVegaChart(
                         chart.chartType,
@@ -294,13 +306,10 @@ ${JSON.stringify(modifiedSpec, null, 2)}
 
     // Convert report content when dialog opens
     useEffect(() => {
-        console.log('Convert report effect triggered:', { open, hasReportContent: !!reportContent });
         if (open && reportContent) {
-            console.log('Starting conversion');
             setIsConverting(true);
             convertToChartifact(reportContent)
                 .then(chartifactMarkdown => {
-                    console.log('Conversion complete, setting source');
                     setSource(chartifactMarkdown);
                     setIsConverting(false);
                 })
@@ -362,10 +371,10 @@ ${JSON.stringify(modifiedSpec, null, 2)}
                         }}
                     />
                 </Box>
-                <Box 
-                    sx={{ 
-                        flex: 1, 
-                        display: 'flex', 
+                <Box
+                    sx={{
+                        flex: 1,
+                        display: 'flex',
                         flexDirection: 'column',
                         gap: 1,
                         minHeight: 0
@@ -374,13 +383,13 @@ ${JSON.stringify(modifiedSpec, null, 2)}
                     <Typography variant="body2" color="text.secondary">
                         Preview
                     </Typography>
-                    <Box 
+                    <Box
                         ref={setParentElement}
-                        sx={{ 
+                        sx={{
                             flex: 1,
                             minHeight: 0,
-                            border: '1px solid', 
-                            borderColor: 'divider', 
+                            border: '1px solid',
+                            borderColor: 'divider',
                             borderRadius: 1,
                             overflow: 'auto',
                             position: 'relative',
@@ -392,7 +401,7 @@ ${JSON.stringify(modifiedSpec, null, 2)}
                                 height: '100%',
                                 border: 'none',
                             }
-                        }} 
+                        }}
                     />
                 </Box>
             </DialogContent>
