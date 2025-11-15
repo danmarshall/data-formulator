@@ -201,7 +201,7 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
             const imageRegex = /\[IMAGE\(([^)]+)\)\]/g;
             let result = reportMarkdown;
             let match;
-            const replacements: Array<{ original: string; replacement: string }> = [];
+            const chartReplacements: Array<{ original: string; specReplacement: string; dataName: string; csvContent: string }> = [];
 
             while ((match = imageRegex.exec(reportMarkdown)) !== null) {
                 const [fullMatch, chartId] = match;
@@ -253,30 +253,36 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
                     // Convert table rows to CSV format using the utility function
                     const csvContent = exportTableToDsv(chartTable, ',');
 
-                    // Create the Chartifact format replacement
-                    const chartifactReplacement = `
+                    // Create the Chartifact spec replacement (without CSV)
+                    const specReplacement = `
 
 \`\`\`json vega-lite
 ${JSON.stringify(modifiedSpec, null, 2)}
 \`\`\`
-
-\`\`\`csv ${dataName}
-${csvContent}
-\`\`\`
 `;
 
-                    replacements.push({
+                    chartReplacements.push({
                         original: fullMatch,
-                        replacement: chartifactReplacement
+                        specReplacement,
+                        dataName,
+                        csvContent
                     });
                 } catch (error) {
                     console.error(`Error processing chart ${chartId}:`, error);
                 }
             }
 
-            // Apply all replacements
-            for (const { original, replacement } of replacements) {
-                result = result.replace(original, replacement);
+            // Apply spec replacements to the markdown
+            for (const { original, specReplacement } of chartReplacements) {
+                result = result.replace(original, specReplacement);
+            }
+
+            // Append all CSV data blocks at the bottom
+            if (chartReplacements.length > 0) {
+                result += '\n\n';
+                for (const { dataName, csvContent } of chartReplacements) {
+                    result += `\n\`\`\`csv ${dataName}\n${csvContent}\n\`\`\`\n`;
+                }
             }
 
             return result;
@@ -310,11 +316,11 @@ ${csvContent}
         <Dialog
             open={open}
             onClose={onClose}
-            maxWidth="lg"
+            maxWidth="xl"
             fullWidth
             PaperProps={{
                 sx: {
-                    minHeight: '80vh',
+                    minHeight: '90vh',
                     maxHeight: '90vh',
                 }
             }}
@@ -324,19 +330,14 @@ ${csvContent}
                     Chartifact Report
                 </Typography>
             </DialogTitle>
-            <DialogContent dividers>
-                <Box 
-                    ref={setParentElement}
-                    sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}
-                >
-                    <Typography variant="body1" color="text.secondary">
-                        Report Source
+            <DialogContent dividers sx={{ display: 'flex', flexDirection: 'row', gap: 2, p: 2, overflow: 'hidden' }}>
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minHeight: 0 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Source
                     </Typography>
                     <TextField
                         multiline
                         fullWidth
-                        minRows={20}
-                        maxRows={20}
                         value={source}
                         onChange={(e) => setSource(e.target.value)}
                         placeholder={isConverting ? "Converting report to Chartifact format..." : "Enter the report source here..."}
@@ -344,15 +345,54 @@ ${csvContent}
                         disabled={isConverting}
                         sx={{
                             flex: 1,
+                            minHeight: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
                             '& .MuiInputBase-root': {
                                 height: '100%',
                                 alignItems: 'flex-start',
+                                overflow: 'hidden',
                             },
                             '& .MuiInputBase-input': {
                                 fontFamily: 'monospace',
                                 fontSize: '0.875rem',
+                                overflow: 'auto !important',
+                                height: '100% !important',
                             }
                         }}
+                    />
+                </Box>
+                <Box 
+                    sx={{ 
+                        flex: 1, 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        gap: 1,
+                        minHeight: 0
+                    }}
+                >
+                    <Typography variant="body2" color="text.secondary">
+                        Preview
+                    </Typography>
+                    <Box 
+                        ref={setParentElement}
+                        sx={{ 
+                            flex: 1,
+                            minHeight: 0,
+                            border: '1px solid', 
+                            borderColor: 'divider', 
+                            borderRadius: 1,
+                            overflow: 'auto',
+                            position: 'relative',
+                            '& > iframe': {
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: '100%',
+                                border: 'none',
+                            }
+                        }} 
                     />
                 </Box>
             </DialogContent>
