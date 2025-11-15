@@ -47,8 +47,18 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
     const [source, setSource] = useState('');
     const [isConverting, setIsConverting] = useState(false);
     const [chartifactLoaded, setChartifactLoaded] = useState(false);
-    const parentElementRef = useRef<HTMLDivElement>(null);
+    const [sandboxReady, setSandboxReady] = useState(false);
+    const [parentElement, setParentElement] = useState<HTMLDivElement | null>(null);
     const sandboxRef = useRef<any>(null);
+
+    console.log('ChartifactDialog render:', { 
+        open, 
+        chartifactLoaded,
+        sandboxReady,
+        hasSource: !!source, 
+        hasParentElement: !!parentElement,
+        hasSandboxRef: !!sandboxRef.current 
+    });
 
     // Load Chartifact scripts
     const loadChartifactScripts = async (): Promise<void> => {
@@ -89,19 +99,17 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
 
     // Initialize Chartifact sandbox
     const initializeSandbox = () => {
-        if (!chartifactLoaded || !parentElementRef.current || !source) {
+        if (!chartifactLoaded || !parentElement || !source) {
             return;
         }
 
-        // Clean up existing sandbox
-        if (sandboxRef.current) {
-            sandboxRef.current = null;
-        }
-
+        console.log('Initializing Chartifact sandbox');
+        
         try {
-            sandboxRef.current = new window.Chartifact!.sandbox.Sandbox(parentElementRef.current, source, {
+            sandboxRef.current = new window.Chartifact!.sandbox.Sandbox(parentElement, source, {
                 onReady: () => {
                     console.log('Sandbox is ready');
+                    setSandboxReady(true);
                 },
                 onError: (error: any) => {
                     console.error('Sandbox error:', error);
@@ -118,19 +126,71 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
         }
     };
 
-    // Load scripts when dialog opens
+    // Check if sandbox is functional
+    const isSandboxFunctional = (): boolean => {
+        if (!sandboxRef.current || !sandboxRef.current.iframe) {
+            return false;
+        }
+
+        const iframe = sandboxRef.current.iframe;
+        const contentWindow = iframe.contentWindow;
+
+        // Only recreate if we have clear evidence of a broken iframe
+        // Missing contentWindow is a clear sign of tombstoning
+        if (!contentWindow) {
+            return false;
+        }
+
+        // Missing or invalid src indicates a problem
+        if (!iframe.src || iframe.src === 'about:blank') {
+            return false;
+        }
+
+        // For normal cases (including blob URLs), assume functional to preserve user state
+        // Only the clear failures above will trigger recreation
+        return true;
+    };    // Load scripts when dialog opens
     useEffect(() => {
+        console.log('Load scripts effect triggered:', { open, chartifactLoaded });
         if (open && !chartifactLoaded) {
+            console.log('Calling loadChartifactScripts');
             loadChartifactScripts();
         }
-    }, [open]);
+    }, [open, chartifactLoaded]);
 
-    // Initialize sandbox when source changes and Chartifact is loaded
+    // Initialize sandbox when dialog opens with all requirements ready
     useEffect(() => {
-        if (chartifactLoaded && source && parentElementRef.current) {
-            initializeSandbox();
+        console.log('Initialize/update sandbox effect triggered:', { 
+            open, 
+            chartifactLoaded, 
+            hasSource: !!source,
+            sourceLength: source.length,
+            hasParentElement: !!parentElement,
+            sandboxReady
+        });
+        
+        if (open && chartifactLoaded && source && parentElement) {
+            if (!isSandboxFunctional() || !sandboxReady) {
+                console.log('Creating new sandbox');
+                initializeSandbox();
+            } else {
+                console.log('Updating existing sandbox with new source');
+                sandboxRef.current.send(source);
+            }
         }
-    }, [chartifactLoaded, source]);
+        
+        // Cleanup function runs when dialog closes or component unmounts
+        return () => {
+            if (!open && sandboxRef.current) {
+                console.log('Dialog closing - destroying sandbox');
+                if (sandboxRef.current.destroy) {
+                    sandboxRef.current.destroy();
+                }
+                sandboxRef.current = null;
+                setSandboxReady(false);
+            }
+        };
+    }, [open, chartifactLoaded, source, parentElement]);
 
 
     // Function to convert report markdown to Chartifact format
@@ -228,10 +288,13 @@ ${csvContent}
 
     // Convert report content when dialog opens
     useEffect(() => {
+        console.log('Convert report effect triggered:', { open, hasReportContent: !!reportContent });
         if (open && reportContent) {
+            console.log('Starting conversion');
             setIsConverting(true);
             convertToChartifact(reportContent)
                 .then(chartifactMarkdown => {
+                    console.log('Conversion complete, setting source');
                     setSource(chartifactMarkdown);
                     setIsConverting(false);
                 })
@@ -263,7 +326,7 @@ ${csvContent}
             </DialogTitle>
             <DialogContent dividers>
                 <Box 
-                    ref={parentElementRef}
+                    ref={setParentElement}
                     sx={{ display: 'flex', flexDirection: 'column', gap: 2, height: '100%' }}
                 >
                     <Typography variant="body1" color="text.secondary">
