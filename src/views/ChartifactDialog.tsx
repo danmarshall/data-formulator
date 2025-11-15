@@ -289,6 +289,8 @@ ${JSON.stringify(modifiedSpec, null, 2)}
                 result = result.replace(original, specReplacement);
             }
 
+            result += '\n\n---\ncreated with AI using [Data Formulator](https://github.com/microsoft/data-formulator)\n';
+
             // Append all CSV data blocks at the bottom
             if (chartReplacements.length > 0) {
                 result += '\n\n';
@@ -405,10 +407,48 @@ ${JSON.stringify(modifiedSpec, null, 2)}
                     />
                 </Box>
             </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose} color="primary">
-                    Close
-                </Button>
+            <DialogActions sx={{ justifyContent: 'space-between', px: 3, py: 2 }}>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+                    <a href="https://microsoft.github.io/chartifact/" target="_blank" rel="noopener noreferrer">
+                        Learn more about Chartifact
+                    </a>
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button 
+                        onClick={() => {
+                            const blob = new Blob([source], { type: 'text/markdown' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'chartifact-report.idoc.md';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }}
+                        disabled={!source}
+                    >
+                        Download Markdown
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            if (window.Chartifact?.htmlWrapper) {
+                                const html = window.Chartifact.htmlWrapper.htmlMarkdownWrapper('Chartifact Report', source);
+                                const blob = new Blob([html], { type: 'text/html' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'chartifact-report.html';
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }
+                        }}
+                        disabled={!source || !chartifactLoaded}
+                    >
+                        Download HTML
+                    </Button>
+                    <Button onClick={onClose} color="primary">
+                        Close
+                    </Button>
+                </Box>
             </DialogActions>
         </Dialog>
     );
