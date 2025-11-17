@@ -250,6 +250,19 @@ export const ReportView: FC = () => {
         }));
     };
 
+    // Handler for saving Chartifact edits
+    const handleSaveChartifactEdits = (reportId: string, chartifactSource: string) => {
+        const report = allGeneratedReports.find(r => r.id === reportId);
+        if (report) {
+            const updatedReport: GeneratedReport = {
+                ...report,
+                chartifactSource: chartifactSource
+            };
+            dispatch(dfActions.saveGeneratedReport(updatedReport));
+            showMessage('Chartifact edits saved successfully!');
+        }
+    };
+
     // Helper function to show messages using dfSlice
     const showMessage = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
         const msg: Message = {
@@ -1260,6 +1273,13 @@ export const ReportView: FC = () => {
                 tables={tables}
                 conceptShelfItems={conceptShelfItems}
                 config={config}
+                reportId={currentReportId}
+                initialChartifactSource={
+                    currentReportId 
+                        ? allGeneratedReports.find(r => r.id === currentReportId)?.chartifactSource 
+                        : undefined
+                }
+                onSaveEdits={handleSaveChartifactEdits}
             />
         </Box>
     );

@@ -67,6 +67,7 @@ export interface GeneratedReport {
     style: string;
     selectedChartIds: string[];
     createdAt: number;
+    chartifactSource?: string; // Optional field to store Chartifact markdown edits
 }
 
 export interface DataFormulatorState {

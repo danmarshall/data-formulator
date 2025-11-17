@@ -79,6 +79,9 @@ interface ChartifactDialogProps {
     tables: DictTable[];
     conceptShelfItems: FieldItem[];
     config: { defaultChartWidth: number; defaultChartHeight: number };
+    reportId?: string; // Optional report ID for saving edits
+    initialChartifactSource?: string; // Optional initial Chartifact source for editing
+    onSaveEdits?: (reportId: string, chartifactSource: string) => void; // Callback to save edits
 }
 
 export const ChartifactDialog: FC<ChartifactDialogProps> = ({
@@ -89,7 +92,10 @@ export const ChartifactDialog: FC<ChartifactDialogProps> = ({
     charts,
     tables,
     conceptShelfItems,
-    config
+    config,
+    reportId,
+    initialChartifactSource,
+    onSaveEdits
 }) => {
     const [source, setSource] = useState('');
     const [isConverting, setIsConverting] = useState(false);
@@ -321,20 +327,27 @@ ${JSON.stringify(modifiedSpec, null, 2)}
 
     // Convert report content when dialog opens
     useEffect(() => {
-        if (open && reportContent) {
-            setIsConverting(true);
-            convertToChartifact(reportContent)
-                .then(chartifactMarkdown => {
-                    setSource(chartifactMarkdown);
-                    setIsConverting(false);
-                })
-                .catch(error => {
-                    console.error('Error converting to Chartifact:', error);
-                    setSource('Error converting report to Chartifact format');
-                    setIsConverting(false);
-                });
+        if (open) {
+            // If we have initial Chartifact source (editing mode), use it
+            if (initialChartifactSource) {
+                setSource(initialChartifactSource);
+                setIsConverting(false);
+            } else if (reportContent) {
+                // Otherwise, convert from report content
+                setIsConverting(true);
+                convertToChartifact(reportContent)
+                    .then(chartifactMarkdown => {
+                        setSource(chartifactMarkdown);
+                        setIsConverting(false);
+                    })
+                    .catch(error => {
+                        console.error('Error converting to Chartifact:', error);
+                        setSource('Error converting report to Chartifact format');
+                        setIsConverting(false);
+                    });
+            }
         }
-    }, [open, reportContent]);
+    }, [open, reportContent, initialChartifactSource]);
 
     return (
         <Dialog
@@ -458,6 +471,19 @@ ${JSON.stringify(modifiedSpec, null, 2)}
                     >
                         Download HTML
                     </Button>
+                    {reportId && onSaveEdits && (
+                        <Button
+                            onClick={() => {
+                                onSaveEdits(reportId, source);
+                                onClose();
+                            }}
+                            disabled={!source}
+                            variant="contained"
+                            color="primary"
+                        >
+                            Save Edits
+                        </Button>
+                    )}
                     <Button onClick={onClose} color="primary">
                         Close
                     </Button>
